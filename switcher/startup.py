@@ -65,14 +65,17 @@ def main():
         while datetime.now().year < 2024:
             time.sleep(1)
         # check if time from last reboot is more than 2 minutes (60 seconds)
-        with open(TIME_INFO_FILE, 'r') as file:
-            last_time_str = file.read()
-        last_time = datetime.strptime(last_time_str, '%Y-%m-%d %H:%M:%S')
-        elapsed_time = (datetime.now() - last_time).total_seconds()
-        if elapsed_time > 120:
+        try:
+            with open(TIME_INFO_FILE, 'r') as file:
+                last_time_str = file.read()
+            last_time = datetime.strptime(last_time_str, '%Y-%m-%d %H:%M:%S')
+            elapsed_time = (datetime.now() - last_time).total_seconds()
+            if elapsed_time > 120:
+                do_test = True
+            else:
+                do_test = False
+        except Exception as e:
             do_test = True
-        else:
-            do_test = False
     else:
         do_test = True
 
