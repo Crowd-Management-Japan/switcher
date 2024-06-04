@@ -6,8 +6,8 @@ sudo systemctl stop switcher.service
 echo -------- service disabled -------- 
 
 # update system
-#sudo apt update -y
-#sudo apt upgrade -y
+sudo apt update -y
+sudo apt upgrade -y
 echo -------- apt installation done -------- 
 
 # copy and rename configuration time
@@ -35,7 +35,7 @@ echo -------- service added --------
 # add crontab for daily reset:
 CRON_REBOOT="0 2 * * * /sbin/shutdown -r now"
 (sudo crontab -l | grep -Fxq "$CRON_REBOOT") || (sudo crontab -l; echo "$CRON_REBOOT") | sudo crontab -
-CRON_RESTART="0 3 * * * systemctl restart switcher"
+CRON_RESTART="0 3 * * * sudo systemctl restart switcher"
 (sudo crontab -l | grep -Fxq "$CRON_RESTART") || (sudo crontab -l; echo "$CRON_RESTART") | sudo crontab -
 echo -------- crontab commands added --------
 

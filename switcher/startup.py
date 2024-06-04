@@ -7,8 +7,8 @@ import os
 # Define constants
 TIME_INFO_FILE = '/var/tmp/last_time.txt'
 RELAY_PINS = [23, 24, 25, 26]
-TEST_REPETITIONS = 2#2
-TEST_DURATION = [1, 3]
+TEST_REPETITIONS = 2
+TEST_DURATION = [5, 3]
 
 # Open pins and setup operating mode
 def setup_pins():
@@ -64,12 +64,12 @@ def main():
         # wait for NTP time (internet connection) or hardware clock
         while datetime.now().year < 2024:
             time.sleep(1)
-        # check if time from last reboot is more than 5 minutes
+        # check if time from last reboot is more than 2 minutes (60 seconds)
         with open(TIME_INFO_FILE, 'r') as file:
             last_time_str = file.read()
         last_time = datetime.strptime(last_time_str, '%Y-%m-%d %H:%M:%S')
-        elapsed_time = (datetime.now() - last_time).total_seconds() / 60
-        if elapsed_time > 2:
+        elapsed_time = (datetime.now() - last_time).total_seconds()
+        if elapsed_time > 120:
             do_test = True
         else:
             do_test = False
@@ -96,7 +96,7 @@ def main():
     
     # wait the remaining time to ensure a 30 s time before main startup
     end_time = time.time()
-    time_wait = 10 - (end_time - start_time)
+    time_wait = 30 - (end_time - start_time)
     if time_wait > 0:
         time.sleep(time_wait)
     sys.exit(0)

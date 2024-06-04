@@ -3,8 +3,8 @@
 directory=`pwd`
 
 # update git repository
-#echo update software from git...
-#git pull origin master
+echo update software from git...
+git pull origin master
 
 # check if test program should be started or not
 echo starting test program...
