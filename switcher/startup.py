@@ -69,16 +69,17 @@ def main():
             last_time_str = file.read()
         last_time = datetime.strptime(last_time_str, '%Y-%m-%d %H:%M:%S')
         elapsed_time = (datetime.now() - last_time).total_seconds() / 60
-        print(elapsed_time)
-        if elapsed_time > 5:
+        if elapsed_time > 2:
             do_test = True
         else:
             do_test = False
     else:
-        with open(TIME_INFO_FILE, 'w') as file:
-            file.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         do_test = True
 
+    # write current time to file
+    with open(TIME_INFO_FILE, 'w') as file:
+        file.write(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+        
     # perform test
     if do_test:
         import config
@@ -95,7 +96,7 @@ def main():
     
     # wait the remaining time to ensure a 30 s time before main startup
     end_time = time.time()
-    time_wait = 30 - (end_time - start_time)
+    time_wait = 10 - (end_time - start_time)
     if time_wait > 0:
         time.sleep(time_wait)
     sys.exit(0)

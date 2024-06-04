@@ -17,7 +17,7 @@ CONTROLLER_ID = config.controller_id
 SETTINGS_URL = config.settings_url
 BACKEND_ADDRESS = config.scanner_server_address
 
-# define constants and some random comment
+# define constants
 TIME_INFO_FILE = '/var/tmp/last_time.txt'
 RELAY_PINS = [23, 24, 25, 26]
 DATA_TYPE_STR = ['count','close']
@@ -283,7 +283,7 @@ def main():
             time.sleep(0.25)
 
     except KeyboardInterrupt:
-        print("\nClosing program through keyboard call...")
+        print("\nclosing program...")
 
     finally:
         if is_raspberry:
