@@ -1,0 +1,22 @@
+# Controller ID is a unique ID identifying this switcher unit.
+controller_id = 1
+
+# Provides here the number of plugs used (typically 2 or 4)
+# This is going to be used in the main program and also in the startup program
+total_switches = 2
+
+# The URL where the CSV file containing switching parameters is taken.
+# Full URL needs to be specified including the .csv extension.
+settings_url = "http://127.0.0.1/configuration.csv"
+
+# Define the server address where sensing data are taken to judge whether a switch is needed.
+# Server address must contain the port number: eg. http://127.0.0.1:5000
+scanner_server_address = "http://127.0.0.1:5000"
+
+# The CSV file containing configuration should be in the following format
+#controller_id,1,2                          <-- the id of the controllers
+#scanner_id,46-47,48-50                     <-- id of the devices where crowd is monitored
+#switch_threshold,11/33,750/800/850/900     <-- thresholds for switching the devices
+#avg_time,5,10                              <-- moving average in minutes
+#data_type,0,1                              <-- types of data used to switch
+#switch_time,0,60                           <-- minimum time between switching action in seconds
