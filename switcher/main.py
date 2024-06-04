@@ -196,11 +196,6 @@ def main():
         logger.info("Switching process started")
     try:
         while True:
-            # Write current time (needed at reboot to judge if swith test is needed)
-            current_time = datetime.now()
-            with open(TIME_INFO_FILE, 'w') as file:
-                file.write(current_time.strftime('%Y-%m-%d %H:%M:%S'))
-
             # check if renewal of settings is needed and/or filename has changed
             if time.localtime().tm_sec == 0:
                 if is_raspberry:
@@ -209,6 +204,10 @@ def main():
             
             # check number of BLE devices and determine if switching is needed
             if time.localtime().tm_sec % 10 == 0:
+                # Write current time (needed at reboot to judge if swith test is needed)
+                current_time = datetime.now()
+                with open(TIME_INFO_FILE, 'w') as file:
+                    file.write(current_time.strftime('%Y-%m-%d %H:%M:%S'))
             
                 # get the total number of BLE devices
                 now = datetime.now()
