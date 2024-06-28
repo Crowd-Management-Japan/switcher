@@ -20,7 +20,7 @@ BACKEND_ADDRESS = config.scanner_server_address
 # define constants
 TIME_INFO_FILE = '/var/tmp/last_time.txt'
 RELAY_PINS = [23, 24, 25, 26]
-DATA_TYPE_STR = ['count','close']
+DATA_TYPE_STR = ['tot_all','tot_close','inst_all','inst_close','stat_all','stat_close']
 
 # define variables
 TIME_AVG = 0
