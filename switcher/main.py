@@ -245,6 +245,7 @@ def main():
     read_settings()
     time_delta = timedelta(minutes=TIME_AVG)
     last_switch = datetime.now()
+    last_checked_sec = -1
     switch_state = np.zeros(TOTAL_SWITCHES)
     logger.info("Switching process started")
 
@@ -256,8 +257,11 @@ def main():
                 read_settings()
             
             # check number of BLE devices and determine if switching is needed
-            if time.localtime().tm_sec % 10 == 0:
-                # Write current time (needed at reboot to judge if swith test is needed)
+            current_sec = time.localtime().tm_sec
+            if (time.localtime().tm_sec % 10 == 0) and (current_sec != last_checked_sec):
+                last_checked_sec = current_sec
+
+                # write current time (needed at reboot to judge if swith test is needed)
                 current_time = datetime.now()
                 with open(TIME_INFO_FILE, 'w') as file:
                     file.write(current_time.strftime('%Y-%m-%d %H:%M:%S'))
@@ -324,7 +328,7 @@ def main():
                     logger.error("While writing data:", e)
                     sys.exit(1)
                     
-            time.sleep(0.5)
+            time.sleep(0.25)
 
     finally:
         GPIO.cleanup()
