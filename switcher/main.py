@@ -1,5 +1,6 @@
 import logging
 import os
+import csv
 import requests
 import pandas as pd
 import numpy as np
@@ -16,6 +17,7 @@ TOTAL_SWITCHES = config.total_switches
 CONTROLLER_ID = config.controller_id
 SETTINGS_URL = config.settings_url
 BACKEND_ADDRESS = config.scanner_server_address
+LOCAL_DATA_PATH = config.local_data
 
 # define constants
 TIME_INFO_FILE = '/var/tmp/last_time.txt'
@@ -29,21 +31,6 @@ DATA_TYPE = 0
 SWITCH_THRESHOLD = list()
 SWITCH_TIME = 0
 DATAFILE = 0
-
-# check if code is being run from raspberry or from a PC/Mac
-def check_raspberry_pi():
-    try:
-        # Check the platform name
-        if platform.system() == 'Linux':
-            # Check for specific file that exists only on Raspberry Pi
-            with open('/proc/cpuinfo', 'r') as cpuinfo:
-                for line in cpuinfo:
-                    if 'Raspberry Pi' in line:
-                        return True
-        return False
-    except Exception as e:
-        logger.error("Error while checking OS environment:", e)
-        return False
 
 # setup logging
 def setup_logging():
@@ -122,11 +109,9 @@ def read_settings():
             new_header = settings_table.iloc[0]
             settings_table = settings_table[1:]
             settings_table.columns = new_header
-            if is_raspberry:
-                logger.info("Switcher settings retrieved")
+            logger.info("Switcher settings retrieved")
         except Exception as e:
-            if is_raspberry:
-                logger.error("Error occurred while retrieving controller settings:", e)
+            logger.error("Error occurred while retrieving controller settings:", e)
             sys.exit(1)
     
         # identify the setting for this controller
@@ -136,8 +121,7 @@ def read_settings():
                 if row['controller_id'] == str(CONTROLLER_ID):
                     break
             else:
-                if is_raspberry:
-                    logger.error(f"{CONTROLLER_ID} not found in the settings table")
+                logger.error(f"{CONTROLLER_ID} not found in the settings table")
                 sys.exit(1)
             
             # read switch thresholds
@@ -145,61 +129,122 @@ def read_settings():
             threshold_parts = switch_threshold_str.split("/")
             SWITCH_THRESHOLD = list()
             if len(threshold_parts) != TOTAL_SWITCHES:
-                if is_raspberry:
-                    logger.error("Invalid pin settings or threshold settings, check whether both sizes are consistent")
+                logger.error("Invalid pin settings or threshold settings, check whether both sizes are consistent")
                 sys.exit(1)
             for i in range(0,len(threshold_parts)):
                 SWITCH_THRESHOLD.append(int(threshold_parts[i]))
-                if is_raspberry:
-                    logger.info(f"Threshold value {i+1} is {int(threshold_parts[i])}")
+                logger.info(f"Threshold value {i+1} is {int(threshold_parts[i])}")
                     
             # read additional settings
             TIME_AVG = int(settings_table.loc[index, 'avg_time'])
             DATA_TYPE = int(settings_table.loc[index, 'data_type'])
             SWITCH_TIME = int(settings_table.loc[index, 'switch_time'])
             SCANNER_LIST = settings_table.loc[index, 'scanner_id']
-            if is_raspberry:
-                logger.info(f"{len(threshold_parts)} switches will be used")
-                logger.info(f"Moving average time set to {TIME_AVG} min")
-                logger.info(f"Data type {DATA_TYPE} will be used in switching")
-                logger.info(f"Switch interval is set to {SWITCH_TIME} s")
-                logger.info(f"Scanners {SCANNER_LIST} will be used for monitoring")
-            if '-' in SCANNER_LIST:
-                index = SCANNER_LIST.index('-')
-                SCANNER_LIST = list(range(int(SCANNER_LIST[:index]), int(SCANNER_LIST[index + 1:])))
+            logger.info(f"{len(threshold_parts)} switches will be used")
+            logger.info(f"Moving average time set to {TIME_AVG} min")
+            logger.info(f"Data type {DATA_TYPE} will be used in switching")
+            logger.info(f"Switch interval is set to {SWITCH_TIME} s")
+
+            # check if switcher needs to work with remote scanners or local data
+            if SCANNER_LIST == '-1':
+                SCANNER_LIST = [int(SCANNER_LIST)]
+                logger.info("Using data from local scanner")
             else:
-                SCANNER_LIST = int(SCANNER_LIST)
+                try:
+                    logger.info(f"Scanner(s) {SCANNER_LIST} will be used for monitoring")
+                    if '-' in SCANNER_LIST:
+                        index = SCANNER_LIST.index('-')
+                        SCANNER_LIST = list(range(int(SCANNER_LIST[:index]), int(SCANNER_LIST[index + 1:])))
+                    else:
+                        SCANNER_LIST = [int(SCANNER_LIST)]
+                except Exception as e:
+                    logger.error("Error occurred while retrieving scanner list:", e)
+                    SCANNER_LIST = [int(SCANNER_LIST)]
+                    logger.info("Using data from local scanner")
+
+                
         except Exception as e:
-            if is_raspberry:
-                logger.error("Error occurred while reading controller settings:", e)
+            logger.error("Error occurred while reading controller settings:", e)
             sys.exit(1)
     else:
-        SWITCH_THRESHOLD = np.zeros(len(threshold_parts))
-        if is_raspberry:
-            logger.error("No internet connectivity, could not retrieve settings")
+        logger.error("No internet connectivity, could not retrieve settings, will use default settings and local data")
+        DATA_TYPE, TIME_AVG, SWITCH_TIME, SCANNER_LIST = [0, 5, 0, 'local']
+        SWITCH_THRESHOLD = [100] * TOTAL_SWITCHES
+
+def get_daily_subfolder(parent_folder):
+    subdirs = [os.path.join(parent_folder, name) for name in os.listdir(parent_folder)
+               if os.path.isdir(os.path.join(parent_folder, name))]
+    if len(subdirs) != 1:
+        logger.error(f"Expected exactly one subfolder in '{parent_folder}', found {len(subdirs)}.")
+    return os.path.join(parent_folder, subdirs[0])
+
+def get_relevant_files(now, time_avg, folder_path):
+    files = []
+    for i in range(time_avg + 10):
+        time = now - timedelta(minutes=i)
+        file_name = time.strftime('%H%M') + '_summary.csv'
+        full_path = os.path.join(folder_path, file_name)
+        if os.path.isfile(full_path) and full_path not in files:
+            files.append(full_path)
+    return files
+
+def extract_values(file_path, start_time, end_time, data_column):
+    values = []
+    try:
+        with open(file_path, 'r') as file:
+            reader = csv.reader(file)
+            for row in reader:
+                if len(row) <= data_column or len(row) < 2:
+                    continue 
+                try:
+                    row_time = datetime.strptime(row[1].strip(), "%H:%M:%S").time()
+                    row_dt = datetime.combine(datetime.now().date(), row_time)
+                except ValueError:
+                    continue
+                if start_time <= row_dt <= end_time:
+                    value = row[data_column].strip()
+                    if value != '':
+                        values.append(float(value))
+    except Exception as e:
+        logger.error(f"Error reading {file_path}: {e}")
     
+    return values
+
+def get_local_values(now, time_delta):
+    # get list of files to check
+    folder_path = get_daily_subfolder(LOCAL_DATA_PATH)
+    files = get_relevant_files(now, TIME_AVG, folder_path)
+    files.reverse()                   
+
+    # extract values from file and compute average
+    all_values = []
+    start_time = now - time_delta
+    for file in files:
+        values = extract_values(file, start_time, now, 4 + DATA_TYPE)
+        all_values.extend(values)
+        total_result = sum(values) / len(values)
+
+    return total_result  
+
 # main loop
 def main():
     global logger
     global GPIO
-    global is_raspberry
-    is_raspberry = check_raspberry_pi()
-    if is_raspberry:
-        logger = setup_logging()
-        GPIO = setup_pins()
-        initialize_file()
+
+    logger = setup_logging()
+    GPIO = setup_pins()
+    initialize_file()
     read_settings()
     time_delta = timedelta(minutes=TIME_AVG)
     last_switch = datetime.now()
     switch_state = np.zeros(TOTAL_SWITCHES)
-    if is_raspberry:
-        logger.info("Switching process started")
+    logger.info("Switching process started")
+
     try:
         while True:
             # check if renewal of settings is needed and/or filename has changed
             if time.localtime().tm_sec == 0:
-                if is_raspberry:
-                    initialize_file()
+                initialize_file()
                 read_settings()
             
             # check number of BLE devices and determine if switching is needed
@@ -214,27 +259,27 @@ def main():
                 total_result = 0
                 try:
                     if check_internet_connection():
-                        for scanner_id in SCANNER_LIST: 
-                            after_time = (now - time_delta).strftime('%Y-%m-%d %H:%M:%S')
-                            before_time = now.strftime('%Y-%m-%d %H:%M:%S')
-                            endpoint = f"/database/export_data?id={scanner_id}&after={after_time}&before={before_time}"
-                            req = requests.get(f"{BACKEND_ADDRESS}{endpoint}")
-                            json_data = StringIO(req.text)
-                            ble_data = pd.read_json(json_data)
-                            if not ble_data.empty:
-                                total_result += ble_data[DATA_TYPE_STR[DATA_TYPE]].mean()
+                        if (len(SCANNER_LIST) == 1) and (SCANNER_LIST[0] < 0):
+                            total_result = get_local_values(now, time_delta)
+                        else:
+                            for scanner_id in SCANNER_LIST: 
+                                after_time = (now - time_delta).strftime('%Y-%m-%d %H:%M:%S')
+                                before_time = now.strftime('%Y-%m-%d %H:%M:%S')
+                                endpoint = f"/database/export_data?id={scanner_id}&after={after_time}&before={before_time}"
+                                req = requests.get(f"{BACKEND_ADDRESS}{endpoint}")
+                                json_data = StringIO(req.text)
+                                ble_data = pd.read_json(json_data)
+                                if not ble_data.empty:
+                                    total_result += ble_data[DATA_TYPE_STR[DATA_TYPE]].mean()
                     else:
-                        if is_raspberry:
-                            logger.error("No internet connectivity, could not connect to scanners")
+                        logger.error("No internet connectivity, could not connect to scanners, will use local values")
+                        total_result = get_local_values(now, time_delta)
+                        
                 except Exception as e:
-                    if is_raspberry:
-                        logger.error("Error occurred while obtaining counts:", e)
+                    logger.error("Error occurred while obtaining counts:", e)
                     sys.exit(1)
                 total_result = round(total_result)
-                if is_raspberry:
-                    logger.info(f"Current total number of BLE devices is {total_result}")
-                else:
-                    print(f"Current total number of BLE devices is {total_result}")
+                logger.info(f"Current total number of BLE devices is {total_result}")
                 
                 # determine if switching is necessary
                 try:
@@ -242,51 +287,40 @@ def main():
                         if total_result >= abs(SWITCH_THRESHOLD[i]):
                             if (datetime.now() - last_switch).total_seconds() > SWITCH_TIME:
                                 if SWITCH_THRESHOLD[i] > 0 and switch_state[i] == 0:
-                                    if is_raspberry:
-                                        GPIO.output(RELAY_PINS[i], GPIO.HIGH)
-                                        logger.info(f" --> Switch {i+1} turned ON <--")
+                                    GPIO.output(RELAY_PINS[i], GPIO.HIGH)
+                                    logger.info(f" --> Switch {i+1} turned ON <--")
                                     switch_state[i] = 1
                                 if SWITCH_THRESHOLD[i] < 0 and switch_state[i] == 1:
-                                    if is_raspberry:
-                                        GPIO.output(RELAY_PINS[i], GPIO.LOW)
-                                        logger.info(f" <-- Switch {i+1} turned OFF -->")
+                                    GPIO.output(RELAY_PINS[i], GPIO.LOW)
+                                    logger.info(f" <-- Switch {i+1} turned OFF -->")
                                     switch_state[i] = 0
                         if total_result < abs(SWITCH_THRESHOLD[i]):
                             if (datetime.now() - last_switch).total_seconds() > SWITCH_TIME:
                                 if SWITCH_THRESHOLD[i] > 0 and switch_state[i] == 1:
-                                    if is_raspberry:
-                                        GPIO.output(RELAY_PINS[i], GPIO.LOW)
-                                        logger.info(f" --> Switch {i+1} turned OFF <--")
+                                    GPIO.output(RELAY_PINS[i], GPIO.LOW)
+                                    logger.info(f" --> Switch {i+1} turned OFF <--")
                                     switch_state[i] = 0
                                 if SWITCH_THRESHOLD[i] < 0 and switch_state[i] == 0:
-                                    if is_raspberry:
-                                        GPIO.output(RELAY_PINS[i], GPIO.HIGH)
-                                        logger.info(f" <-- Switch {i+1} turned ON -->")
+                                    GPIO.output(RELAY_PINS[i], GPIO.HIGH)
+                                    logger.info(f" <-- Switch {i+1} turned ON -->")
                                     switch_state[i] = 1  
                 except Exception as e:
-                    if is_raspberry:
-                        logger.error("Error occurred while switching:", e)
+                    logger.error("Error occurred while switching:", e)
                     sys.exit(1)
                     
                 # write data if needed
-                if is_raspberry:
-                    try:
-                        for i in range(0,TOTAL_SWITCHES):
-                            DATAFILE.write(now.strftime("%Y-%m-%d,%H:%M:%S")+","+str(total_result)+","+str(i+1)+","+str(int(switch_state[i]))+"\n")
-                            DATAFILE.flush()             
-                    except Exception as e:
-                        logger.error("While writing data:", e)
-                        sys.exit(1)
+                try:
+                    for i in range(0,TOTAL_SWITCHES):
+                        DATAFILE.write(now.strftime("%Y-%m-%d,%H:%M:%S")+","+str(total_result)+","+str(i+1)+","+str(int(switch_state[i]))+"\n")
+                        DATAFILE.flush()             
+                except Exception as e:
+                    logger.error("While writing data:", e)
+                    sys.exit(1)
                     
-                
-            time.sleep(0.25)
-
-    except KeyboardInterrupt:
-        print("\nclosing program...")
+            time.sleep(1.00)
 
     finally:
-        if is_raspberry:
-            GPIO.cleanup()
+        GPIO.cleanup()
 
 if __name__ == "__main__":
     main()

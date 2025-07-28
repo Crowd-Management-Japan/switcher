@@ -6,13 +6,14 @@ After=rc-local.service local-fs.target network-pre.target apparmor.service syste
 
 [Service]
 ExecStart=/home/blescan/switcher/etc/start.sh
+ExecStop=python3 /home/blescan/switcher/switcher/stop.py
 User=blescan
 Restart=always
 RestartSec=3s
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=switcherservice
-WorkingDirectory=/home/blescan
+WorkingDirectory=/home/blescan/switcher
 
 
 [Install]
