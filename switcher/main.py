@@ -127,6 +127,7 @@ def read_settings():
             # read switch thresholds
             switch_threshold_str = settings_table.loc[index, 'switch_threshold']
             threshold_parts = switch_threshold_str.split("/")
+            logger.info(f"{len(threshold_parts)} switches will be used")
             SWITCH_THRESHOLD = list()
             if len(threshold_parts) != TOTAL_SWITCHES:
                 logger.error("Invalid pin settings or threshold settings, check whether both sizes are consistent")
@@ -140,7 +141,6 @@ def read_settings():
             DATA_TYPE = int(settings_table.loc[index, 'data_type'])
             SWITCH_TIME = int(settings_table.loc[index, 'switch_time'])
             SCANNER_LIST = settings_table.loc[index, 'scanner_id']
-            logger.info(f"{len(threshold_parts)} switches will be used")
             logger.info(f"Moving average time set to {TIME_AVG} min")
             logger.info(f"Data type {DATA_TYPE} will be used in switching")
             logger.info(f"Switch interval is set to {SWITCH_TIME} s")
@@ -170,6 +170,14 @@ def read_settings():
         logger.error("No internet connectivity, could not retrieve settings, will use default settings and local data")
         DATA_TYPE, TIME_AVG, SWITCH_TIME, SCANNER_LIST = [0, 5, 0, 'local']
         SWITCH_THRESHOLD = [100] * TOTAL_SWITCHES
+
+        # show settings in use
+        logger.info(f"{TOTAL_SWITCHES} switches will be used")
+        for i in range(0,TOTAL_SWITCHES):
+                logger.info(f"Threshold value {i+1} is {int(SWITCH_THRESHOLD[i])}")
+        logger.info(f"Moving average time set to {TIME_AVG} min")
+        logger.info(f"Data type {DATA_TYPE} will be used in switching")
+        logger.info(f"Switch interval is set to {SWITCH_TIME} s")
 
 def get_daily_subfolder(parent_folder):
     subdirs = [os.path.join(parent_folder, name) for name in os.listdir(parent_folder)
@@ -272,7 +280,6 @@ def main():
                                 if not ble_data.empty:
                                     total_result += ble_data[DATA_TYPE_STR[DATA_TYPE]].mean()
                     else:
-                        logger.error("No internet connectivity, could not connect to scanners, will use local values")
                         total_result = get_local_values(now, time_delta)
                         
                 except Exception as e:
@@ -317,7 +324,7 @@ def main():
                     logger.error("While writing data:", e)
                     sys.exit(1)
                     
-            time.sleep(1.00)
+            time.sleep(0.5)
 
     finally:
         GPIO.cleanup()
