@@ -142,7 +142,7 @@ def read_settings():
             SWITCH_TIME = int(settings_table.loc[index, 'switch_time'])
             SCANNER_LIST = settings_table.loc[index, 'scanner_id']
             logger.info(f"Moving average time set to {TIME_AVG} min")
-            logger.info(f"Data type {DATA_TYPE} will be used in switching")
+            logger.info(f"Data type {DATA_TYPE_STR[DATA_TYPE]} will be used in switching")
             logger.info(f"Switch interval is set to {SWITCH_TIME} s")
 
             # check if switcher needs to work with remote scanners or local data
