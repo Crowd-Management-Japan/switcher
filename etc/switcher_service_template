@@ -5,6 +5,7 @@ After=rc-local.service local-fs.target network-pre.target apparmor.service syste
 
 
 [Service]
+ExecStart=/bin/bash -c "sleep 30; SWITCHER_DIRECTORY/etc/start.sh"
 ExecStart=SWITCHER_DIRECTORY/etc/start.sh
 ExecStop=python3 SWITCHER_DIRECTORY/switcher/stop.py
 User=blescan
