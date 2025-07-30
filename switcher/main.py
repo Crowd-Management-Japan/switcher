@@ -230,7 +230,10 @@ def get_local_values(now, time_delta):
     for file in files:
         values = extract_values(file, start_time, now, 4 + DATA_TYPE)
         all_values.extend(values)
-        total_result = sum(values) / len(values)
+        if len(values) > 0:
+            total_result = sum(values) / len(values)
+        else:
+            total_result = 0
 
     return total_result  
 
